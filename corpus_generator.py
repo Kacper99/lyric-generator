@@ -1,8 +1,30 @@
 import lyricsgenius as lg
 import argparse
+import json
 
 parser = argparse.ArgumentParser('Generate a corpus with all song lyrics from a specified artist')
+parser.add_argument('-c', '--client', required=True)
 parser.add_argument('-a', '--artist', required=True, metavar='Artist',
                     help='Name of the artist to generate corpus for')
+parser.add_argument('-s', '--skip', required=False,
+                    help='Skip downloading songs',
+                    action='store_true', default=False)
 
 args = parser.parse_args()
+
+lyrics_json_path = 'lyrics.json'
+
+if not args.skip:
+    genius = lg.Genius(args.client)
+    artist = genius.search_artist(args.artist)
+    artist.save_lyrics(lyrics_json_path)
+
+all_song_lyrics = []
+with open(lyrics_json_path) as f:
+    lyrics = json.load(f)
+    for s in lyrics['songs']:
+        all_song_lyrics.append(s['lyrics'])
+
+with open('lyric-corpus.txt', 'w') as f:
+    f.write('\n\n\n'.join(all_song_lyrics))
+
