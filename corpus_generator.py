@@ -12,19 +12,22 @@ parser.add_argument('-s', '--skip', required=False,
 
 args = parser.parse_args()
 
-lyrics_json_path = 'lyrics.json'
+artist_file_name = args.artist.replace(' ', '_').lower()
+lyrics_json_path = 'data/{}-lyrics.json'.format(artist_file_name)
 
 if not args.skip:
     genius = lg.Genius(args.client)
-    artist = genius.search_artist(args.artist)
-    artist.save_lyrics(lyrics_json_path)
+    artist = genius.search_artist(args.artist, max_songs=3)
+    artist.save_lyrics(lyrics_json_path, sanitize=False)
 
 all_song_lyrics = []
-with open(lyrics_json_path) as f:
+with open(lyrics_json_path, encoding='utf-8') as f:
     lyrics = json.load(f)
     for s in lyrics['songs']:
+        if s['lyrics'] is None:
+            continue
         all_song_lyrics.append(s['lyrics'])
 
-with open('lyric-corpus.txt', 'w') as f:
+with open('data/' + artist_file_name + '-corpus.txt', 'w+') as f:
     f.write('\n\n\n'.join(all_song_lyrics))
 
