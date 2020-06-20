@@ -118,9 +118,12 @@ model.load_weights(tf.train.latest_checkpoint(checkpoint_dir))
 model.build(tf.TensorShape([1, None]))
 model.summary()
 
+# model.save_weights('weights/am_weights1')
+# model.save('models/am_model1.h5')
+
 def generate_text(model, start_string):
     # Number of characters to generate
-    num_generate = 1000
+    num_generate = 1193
 
     input_ids = [char2idx[s] for s in start_string]
     input_ids = tf.expand_dims(input_ids, 0)
@@ -129,7 +132,7 @@ def generate_text(model, start_string):
 
     # Low - results in more predictable text
     # High - more surprising text
-    temperature = 1.0
+    temperature = 0.9
 
     model.reset_states()
     for i in range(num_generate):
