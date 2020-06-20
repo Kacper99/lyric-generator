@@ -2,7 +2,14 @@ import tensorflow as tf
 
 import numpy as np
 import os
+import argparse
 import time
+
+
+parser = argparse.ArgumentParser('Generate lyrics')
+parser.add_argument('-s', '--skip', help='Skip training', action='store_true')
+
+args = parser.parse_args()
 
 def split_input_target(chunk):
     """
@@ -27,7 +34,7 @@ def build_model(vocab_size, embedding_dim, rnn_units, batch_size):
     return model
 
 
-text = open('data/blossoms-corpus.txt').read()
+text = open('data/shakespere.txt').read()
 
 # Get all the unique characters in the text
 vocab = sorted(set(text))
@@ -39,6 +46,11 @@ char2idx = {u: i for i, u in enumerate(vocab)}
 idx2char = np.array(vocab)
 
 text_as_int = np.array([char2idx[c] for c in text])
+
+print('{')
+for char in char2idx:
+    print('    {:4s}: {:3d},'.format(char, char2idx[char]))
+print('\n}')
 
 # The maximum length sentence we want for a single input in characters
 seq_length = 100
@@ -54,7 +66,7 @@ dataset = sequences.map(split_input_target)
 #     print('Input data: ', ''.join(idx2char[input_example]))
 #     print('Output data: ', ''.join(idx2char[output_example]))
 
-BATCH_SIZE = 16
+BATCH_SIZE = 64
 BUFFER_SIZE = 10000
 dataset = dataset.shuffle(BUFFER_SIZE).batch(BATCH_SIZE, drop_remainder=True)
 # print(dataset)
@@ -65,30 +77,24 @@ vocab_size = len(vocab)
 embedding_dim = 256
 rnn_units = 1024
 
-model = build_model(vocab_size, embedding_dim, rnn_units, BATCH_SIZE)
-
-for input_example_batch, target_example_batch in dataset.take(1):
-    example_batch_predictions = model(input_example_batch)
-    print(example_batch_predictions.shape, ' -> (batch_size, sequence_length, vocab_size)')
-
-model.summary()
-
-def loss(labels, logits):
-    return tf.keras.losses.sparse_categorical_crossentropy(labels, logits, from_logits=True)
-
-model.compile(optimizer='adam', loss=loss)
-
-
-# Configure checkpoints
+# Configure checkpointspython
 checkpoint_dir = './training_checkpoints'
 checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt_{epoch}")
 
 checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_prefix, save_weights_only=True)
 
+if not args.skip:
+    model = build_model(vocab_size, embedding_dim, rnn_units, BATCH_SIZE)
+    model.summary()
 
-# Execute training
-EPOCHS = 10
-history = model.fit(dataset, epochs=EPOCHS, callbacks=[checkpoint_callback])
+    def loss(labels, logits):
+        return tf.keras.losses.sparse_categorical_crossentropy(labels, logits, from_logits=True)
+
+    model.compile(optimizer='adam', loss=loss)
+
+    # Execute training
+    EPOCHS = 10
+    history = model.fit(dataset, epochs=EPOCHS, callbacks=[checkpoint_callback])
 
 
 # Generate the text
@@ -96,3 +102,35 @@ model = build_model(vocab_size, embedding_dim, rnn_units, batch_size=1)
 model.load_weights(tf.train.latest_checkpoint(checkpoint_dir))
 model.build(tf.TensorShape([1, None]))
 model.summary()
+
+def generate_text(model, start_string):
+    # Number of characters to generate
+    num_generate = 1000
+
+    input_ids = [char2idx[c] for c in start_string]
+    input_ids = tf.expand_dims(input_ids, 0)
+
+    text_generated = []
+
+    # Low - results in more predictable text
+    # High - more surprising text
+    temperature = 1
+
+    model.reset_states()
+    for i in range(num_generate):
+        predictions = model(input_ids)
+        predictions = tf.squeeze(predictions, 0)
+
+        # Use a categorical distribution to predict the character returned by the model
+        predictions = predictions / temperature
+        predicted_id = tf.random.categorical(predictions, num_samples=1)[-1, 0].numpy()
+
+        # Pass the predicted character as the next input to the model
+        input_eval = tf.expand_dims([predicted_id], 0)
+        text_generated.append(idx2char[predicted_id])
+
+    return start_string + ''.join(text_generated)
+
+
+print(generate_text(model, 'Have '))
+

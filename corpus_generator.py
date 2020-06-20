@@ -17,7 +17,7 @@ lyrics_json_path = 'data/{}-lyrics.json'.format(artist_file_name)
 
 if not args.skip:
     genius = lg.Genius(args.client)
-    artist = genius.search_artist(args.artist, max_songs=3)
+    artist = genius.search_artist(args.artist)
     artist.save_lyrics(lyrics_json_path, sanitize=False)
 
 all_song_lyrics = []
