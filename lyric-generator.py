@@ -8,7 +8,6 @@ import time
 physical_devices = tf.config.list_physical_devices('GPU')
 tf.config.experimental.set_memory_growth(physical_devices[0], enable=True)
 
-
 parser = argparse.ArgumentParser('Generate lyrics')
 parser.add_argument('-s', '--skip', help='Skip training', action='store_true')
 
@@ -28,10 +27,10 @@ def split_input_target(chunk):
     return input_text, target_text
 
 
-text = open('data/indie-corpus.txt', 'rb').read().decode(encoding='utf-8')
-
+text = open('data/shakespeare.txt', 'rb').read().decode(encoding='utf-8')
+text_tokens = text.split(' ')
 # Get all the unique characters in the text
-vocab = sorted(set(text))
+vocab = sorted(set(text_tokens))
 print('{} unique characters'.format(len(vocab)))
 
 # Processing the Text
@@ -39,7 +38,7 @@ print('{} unique characters'.format(len(vocab)))
 char2idx = {u: i for i, u in enumerate(vocab)}
 idx2char = np.array(vocab)
 
-text_as_int = np.array([char2idx[c] for c in text])
+text_as_int = np.array([char2idx[c] for c in text_tokens])
 
 print('{')
 for char in char2idx:
@@ -56,14 +55,14 @@ char_dataset = tf.data.Dataset.from_tensor_slices(text_as_int)
 sequences = char_dataset.batch(seq_length+1, drop_remainder=True)
 
 dataset = sequences.map(split_input_target)
-# for input_example, output_example in dataset.take(1):
-#     print('Input data: ', ''.join(idx2char[input_example]))
-#     print('Output data: ', ''.join(idx2char[output_example]))
+for input_example, output_example in dataset.take(1):
+    print('Input data: ', ''.join(idx2char[input_example]))
+    print('Output data: ', ''.join(idx2char[output_example]))
 
 BATCH_SIZE = 64
 BUFFER_SIZE = 10000
 dataset = dataset.shuffle(BUFFER_SIZE).batch(BATCH_SIZE, drop_remainder=True)
-# print(dataset)
+print(dataset)
 
 
 # Building the model
@@ -83,7 +82,7 @@ def build_model(vocab_size, embedding_dim, rnn_units, batch_size):
     ])
     return model
 
-# Configure checkpointspython
+# Configure checkpoints
 checkpoint_dir = './training_checkpoints'
 checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt_{epoch}")
 
@@ -91,11 +90,6 @@ checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_pre
 
 if not args.skip:
     model = build_model(vocab_size, embedding_dim, rnn_units, BATCH_SIZE)
-
-    for input_example_batch, target_example_batch in dataset.take(1):
-        example_batch_predictions = model(input_example_batch)
-        print(example_batch_predictions.shape, "# (batch_size, sequence_length, vocab_size)")
-
     model.summary()
 
     def loss(labels, logits):
@@ -104,7 +98,7 @@ if not args.skip:
     model.compile(optimizer='adam', loss=loss)
 
     # Execute training
-    EPOCHS = 50
+    EPOCHS = 5
     history = model.fit(dataset, epochs=EPOCHS, callbacks=[checkpoint_callback])
 
 
@@ -115,21 +109,22 @@ model.load_weights(tf.train.latest_checkpoint(checkpoint_dir))
 model.build(tf.TensorShape([1, None]))
 model.summary()
 
-model.save_weights('weights/indie_weights1')
-model.save('models/indie_model1.h5')
+# model.save_weights('weights/indie_weights1')
+# model.save('models/indie_model1.h5')
 
 def generate_text(model, start_string):
     # Number of characters to generate
-    num_generate = 1193
+    start_string_tokens = start_string.split(' ')
+    num_generate = 250
 
-    input_ids = [char2idx[s] for s in start_string]
+    input_ids = [char2idx[s] for s in start_string_tokens]
     input_ids = tf.expand_dims(input_ids, 0)
 
     text_generated = []
 
     # Low - results in more predictable text
     # High - more surprising text
-    temperature = 0.9
+    temperature = 0.7
 
     model.reset_states()
     for i in range(num_generate):
@@ -144,8 +139,8 @@ def generate_text(model, start_string):
         input_ids = tf.expand_dims([predicted_id], 0)
         text_generated.append(idx2char[predicted_id])
 
-    return start_string + ''.join(text_generated)
+    return start_string + ' '.join(text_generated)
 
 
-print(generate_text(model, '[Verse 1] '))
+print(generate_text(model, 'I'))
 
